@@ -1,9 +1,13 @@
 {
-  "version": 3,
-  "routes": [
+  "version": 2,
+  "builds": [
     {
-      "src": "/api/(.*)",
-      "dest": "/api/$1.ts"
+      "src": "package.json",
+      "use": "@vercel/static-build"
+    },
+    {
+      "src": "api/**/*.ts",
+      "use": "@vercel/node"
     }
   ]
 }
