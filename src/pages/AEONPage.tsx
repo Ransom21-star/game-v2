@@ -1,5 +1,6 @@
 import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { ChatMessage, AEONSystemAction } from '../types';
+import VoiceInput from '../components/VoiceInput';
 
 const initialMessages: ChatMessage[] = [
   {
@@ -31,6 +32,7 @@ export default function AEONPage() {
   const [voiceEnabled, setVoiceEnabled] = useState(false);
   const [actionLog, setActionLog] = useState<AEONSystemAction[]>([]);
   const [latestReply, setLatestReply] = useState('');
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const systemStatus = useMemo(() => {
     if (actionLog.length === 0) return 'No recent AEON actions detected.';
@@ -62,12 +64,26 @@ export default function AEONPage() {
     setLoading(true);
 
     try {
+      setErrorMessage(null);
       const response = await fetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ messages: nextMessages }),
       });
-      const data = (await response.json()) as { reply?: string };
+      const data = await response.json();
+
+      if (!response.ok) {
+        const serverMessage = data?.error || 'AEON request failed. Check server logs for details.';
+        setErrorMessage(serverMessage);
+        const replyMessage: ChatMessage = {
+          role: 'aeon',
+          text: serverMessage,
+        };
+        setMessages((current) => [...current, replyMessage]);
+        setLatestReply(serverMessage);
+        return;
+      }
+
       const replyText = data.reply ?? 'AEON is aligning your query.';
       const replyMessage: ChatMessage = {
         role: 'aeon',
@@ -77,9 +93,11 @@ export default function AEONPage() {
       setLatestReply(replyText);
       applySystemActions(replyText);
     } catch (error) {
+      const errorText = 'AEON could not reach the network. Check your server keys.';
+      setErrorMessage(errorText);
       const errorMessage: ChatMessage = {
         role: 'aeon',
-        text: 'AEON could not reach the network. Check your server keys.',
+        text: errorText,
       };
       setMessages((current) => [...current, errorMessage]);
       setLatestReply(errorMessage.text);
@@ -105,6 +123,7 @@ export default function AEONPage() {
       <div className="glass-panel chat-overview">
         <div className="label-small">System Status</div>
         <p>{systemStatus}</p>
+        {errorMessage && <div className="error-banner">{errorMessage}</div>}
       </div>
 
       <div className="glass-panel chat-panel">
@@ -126,6 +145,12 @@ export default function AEONPage() {
 
       <form onSubmit={handleSubmit} className="glass-panel chat-form">
         <div className="label-small">Invoke AEON</div>
+        <VoiceInput
+          onResult={(text) => setDraft((current) => (current ? `${current}\n${text}` : text))}
+          label="Speak to AEON"
+          helperText="Tap to speak your request, then send it to the system."
+          disabled={loading}
+        />
         <textarea
           value={draft}
           onChange={(event) => setDraft(event.target.value)}

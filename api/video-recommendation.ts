@@ -20,17 +20,54 @@ If a precise video is not possible, set url to an empty string and provide stron
 `;
 }
 
+function extractGeminiText(data: any) {
+  if (!data) return '';
+
+  if (typeof data.output === 'string' && data.output.trim()) {
+    return data.output.trim();
+  }
+
+  if (Array.isArray(data.output)) {
+    for (const output of data.output) {
+      const content = output?.content;
+      if (typeof content === 'string' && content.trim()) return content.trim();
+      if (Array.isArray(content)) {
+        for (const part of content) {
+          if (typeof part?.text === 'string' && part.text.trim()) return part.text.trim();
+        }
+      }
+    }
+  }
+
+  if (Array.isArray(data.candidates)) {
+    for (const candidate of data.candidates) {
+      const content = candidate?.content;
+      if (typeof content === 'string' && content.trim()) return content.trim();
+      if (Array.isArray(content)) {
+        for (const part of content) {
+          if (typeof part?.text === 'string' && part.text.trim()) return part.text.trim();
+        }
+      }
+    }
+  }
+
+  return '';
+}
+
 function buildVideoResponse(data: any) {
-  if (!data?.output?.[0]?.content) return null;
-  const text = data.output[0].content;
+  const text = extractGeminiText(data);
+  if (!text) return null;
+
   try {
     const match = text.match(/\{[\s\S]*\}/);
     if (match) {
       return JSON.parse(match[0]);
     }
   } catch (error) {
+    console.error('Could not parse Gemini response JSON', error);
     return null;
   }
+
   return null;
 }
 
@@ -41,11 +78,19 @@ export default async function handler(req: any, res: any) {
   }
 
   const { topic, awareness, context } = req.body || {};
+
+  if (!topic || !awareness) {
+    res.status(400).json({ error: 'Request body must include topic and awareness.' });
+    return;
+  }
+
   const serperKey = process.env.SERPER_API_KEY;
   const geminiKey = process.env.GEMINI_API_KEY;
 
   if (!serperKey || !geminiKey) {
-    res.status(200).json({
+    console.error('Missing SERPER_API_KEY or GEMINI_API_KEY');
+    res.status(500).json({
+      error: 'SERPER_API_KEY and GEMINI_API_KEY must both be configured on the server.',
       title: 'Unable to build recommendation',
       url: '#',
       channel: 'AEON',
@@ -65,6 +110,8 @@ export default async function handler(req: any, res: any) {
     });
 
     if (!searchResponse.ok) {
+      const searchError = await searchResponse.text();
+      console.error('Serper search failed:', searchError);
       throw new Error('Serper search failed');
     }
 
@@ -81,7 +128,10 @@ export default async function handler(req: any, res: any) {
     });
 
     if (!geminiResponse.ok) {
-      throw new Error('Gemini selection failed');
+      const geminiError = await geminiResponse.text();
+      console.error('Gemini selection failed:', geminiError);
+      res.status(502).json({ error: 'Gemini selection failed', details: geminiError });
+      return;
     }
 
     const geminiData = await geminiResponse.json();
@@ -104,12 +154,13 @@ export default async function handler(req: any, res: any) {
     });
   } catch (error) {
     console.error('Video recommendation failed', error);
-    res.status(200).json({
+    res.status(502).json({
+      error: 'A server error occurred while generating your learning path recommendation.',
       title: 'Video recommendation unavailable',
       url: '',
       channel: 'AEON',
       why: 'A server error occurred while generating your learning path recommendation. Use this guidance to continue.',
-      searchTerms: `${req.body?.topic || 'learning'} ${req.body?.awareness || 'Intermediate'} video search`,
+      searchTerms: `${topic || 'learning'} ${awareness || 'Intermediate'} video search`,
       mustCover: 'The result must cover the main concept with clear examples and show why it matters for your current level.',
       quizQuestion: 'What was the most important idea this content taught you?',
       quizHint: 'Answer using the main concept or example you found.',

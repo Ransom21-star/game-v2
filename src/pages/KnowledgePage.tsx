@@ -1,27 +1,33 @@
 import { useState } from 'react';
 import type { VideoRecommendationResponse, VideoRecommendationRequest } from '../types';
+import VoiceInput from '../components/VoiceInput';
 
 const defaultCategories = ['Financial Freedom', 'Manifestation Mastery', 'Dream Body'];
 
 export default function KnowledgePage() {
   const [activeTab, setActiveTab] = useState('learning');
   const [topic, setTopic] = useState('Manifestation Mastery');
+  const [customTopic, setCustomTopic] = useState('');
   const [awareness, setAwareness] = useState('Intermediate');
   const [recommendation, setRecommendation] = useState<VideoRecommendationResponse | null>(null);
   const [quizAnswer, setQuizAnswer] = useState('');
   const [quizSubmitted, setQuizSubmitted] = useState(false);
   const [quizResult, setQuizResult] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  const effectiveTopic = customTopic || topic;
 
   async function requestVideo() {
     setLoading(true);
+    setErrorMessage(null);
     setRecommendation(null);
     setQuizAnswer('');
     setQuizSubmitted(false);
     setQuizResult(null);
     try {
       const payload: VideoRecommendationRequest = {
-        topic,
+        topic: effectiveTopic,
         awareness,
         context: 'User is building a sovereign lifestyle system with a strong dedication to self-mastery and growth.',
       };
@@ -31,13 +37,28 @@ export default function KnowledgePage() {
         body: JSON.stringify(payload),
       });
       const data = await response.json();
+
+      if (!response.ok) {
+        const message = data?.error || data?.why || `${response.status} ${response.statusText}`;
+        setErrorMessage(message);
+        setRecommendation({
+          title: 'Unable to recommend video at this time',
+          url: '#',
+          channel: 'AEON',
+          why: message,
+        });
+        return;
+      }
+
       setRecommendation(data);
     } catch (error) {
+      const message = 'Video recommendation failed. Check your network or server settings.';
+      setErrorMessage(message);
       setRecommendation({
         title: 'Unable to recommend video at this time',
         url: '#',
         channel: 'AEON',
-        why: 'The backend could not complete the recommendation. Check API keys and server status.',
+        why: message,
       });
     } finally {
       setLoading(false);
@@ -45,15 +66,16 @@ export default function KnowledgePage() {
   }
 
   return (
-    <div>
-      <div className="panel">
-        <div className="panel-header">
-          <div>
-            <div className="label-small">Knowledge</div>
-            <h1>Learning & Books</h1>
-          </div>
-          <div className="status-chip">Dynamic video intelligence</div>
+    <div className="page-shell knowledge-page">
+      <div className="page-header">
+        <div>
+          <div className="label-small">Knowledge</div>
+          <h1>Learning & Books</h1>
         </div>
+        <div className="status-chip glow-pill">Dynamic video intelligence</div>
+      </div>
+
+      <div className="glass-panel">
         <div className="tab-bar" style={{ marginBottom: 20 }}>
           <button type="button" className={`tab-button ${activeTab === 'learning' ? 'active' : ''}`} onClick={() => setActiveTab('learning')}>
             Learning Path
@@ -67,32 +89,47 @@ export default function KnowledgePage() {
         </div>
 
         {activeTab === 'learning' && (
-          <div className="panel">
-            <div className="label-small">Adaptive video recommendation</div>
-            <p>
-              AEON evaluates your awareness, current rhythms, and goal category before recommending the exact video you need.
-            </p>
-            <div className="row-grid" style={{ gridTemplateColumns: '1fr 1fr', marginTop: 18, gap: 16 }}>
+          <div className="glass-panel">
+            <div className="section-title">Adaptive video recommendation</div>
+            <p>AEON evaluates your awareness, current rhythms, and goal category before recommending the exact video you need.</p>
+            <div className="feature-grid">
               <div>
                 <label className="label-small">Goal Category</label>
                 <select value={topic} onChange={(event) => setTopic(event.target.value)}>
                   {defaultCategories.map((category) => (
-                    <option key={category} value={category}>{category}</option>
+                    <option key={category} value={category}>
+                      {category}
+                    </option>
                   ))}
                 </select>
+              </div>
+              <div>
+                <label className="label-small">Voice Topic</label>
+                <VoiceInput
+                  onResult={(text) => {
+                    setCustomTopic(text);
+                    setTopic(text);
+                  }}
+                  label="Speak a topic"
+                  helperText="Tell AEON what you want to learn next."
+                />
+                {customTopic && <p className="voice-meta">Using spoken topic: {customTopic}</p>}
               </div>
               <div>
                 <label className="label-small">Current awareness</label>
                 <select value={awareness} onChange={(event) => setAwareness(event.target.value)}>
                   {['Beginner', 'Intermediate', 'Advanced', 'Expert'].map((level) => (
-                    <option key={level} value={level}>{level}</option>
+                    <option key={level} value={level}>
+                      {level}
+                    </option>
                   ))}
                 </select>
               </div>
             </div>
-            <button style={{ marginTop: 18 }} type="button" onClick={requestVideo} disabled={loading}>
+            <button type="button" onClick={requestVideo} disabled={loading}>
               {loading ? 'Assessing the best video…' : 'Recommend Next Video'}
             </button>
+            {errorMessage && <div className="error-banner" style={{ marginTop: 16 }}>{errorMessage}</div>}
             {recommendation && (
               <div className="video-card panel" style={{ marginTop: 20 }}>
                 <div className="label-small">Adaptive Recommendation</div>
@@ -145,9 +182,9 @@ export default function KnowledgePage() {
         )}
 
         {activeTab === 'books' && (
-          <div className="panel">
-            <div className="label-small">Books curated by AEON</div>
-            <div className="row-grid" style={{ gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 16, marginTop: 16 }}>
+          <div className="glass-panel">
+            <div className="section-title">Books curated by AEON</div>
+            <div className="feature-grid">
               {[
                 { title: 'The Power of Now', reason: 'Build an unshakable inner presence.' },
                 { title: 'Atomic Habits', reason: 'Transform small daily rituals into huge momentum.' },
@@ -157,7 +194,7 @@ export default function KnowledgePage() {
                 <div key={book.title} className="book-card">
                   <strong>{book.title}</strong>
                   <p style={{ marginTop: 10, color: '#c7d1ff' }}>{book.reason}</p>
-                  <button style={{ marginTop: 12 }}>Track Progress</button>
+                  <button>Track Progress</button>
                 </div>
               ))}
             </div>
@@ -165,23 +202,23 @@ export default function KnowledgePage() {
         )}
 
         {activeTab === 'finance' && (
-          <div className="panel">
-            <div className="label-small">Finance Tracker</div>
-            <div className="row-grid" style={{ gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 16, marginTop: 16 }}>
-              <div className="panel" style={{ padding: 18 }}>
+          <div className="glass-panel">
+            <div className="section-title">Finance Tracker</div>
+            <div className="feature-grid">
+              <div className="glass-panel mini-card">
                 <div className="label-small">Monthly Income</div>
                 <h3>$1,820</h3>
               </div>
-              <div className="panel" style={{ padding: 18 }}>
+              <div className="glass-panel mini-card">
                 <div className="label-small">Expenses</div>
                 <h3>$860</h3>
               </div>
-              <div className="panel" style={{ padding: 18 }}>
+              <div className="glass-panel mini-card">
                 <div className="label-small">Savings Rate</div>
                 <h3>28%</h3>
               </div>
             </div>
-            <button style={{ marginTop: 20 }}>Ask AEON to analyse finances</button>
+            <button>Ask AEON to analyse finances</button>
           </div>
         )}
       </div>

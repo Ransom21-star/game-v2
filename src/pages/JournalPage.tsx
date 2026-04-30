@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import VoiceInput from '../components/VoiceInput';
 
 const prompts = [
   { label: 'Daily Declaration', placeholder: 'Who are you choosing to be today?' },
@@ -11,17 +12,19 @@ const prompts = [
 export default function JournalPage() {
   const [activePrompt, setActivePrompt] = useState(0);
   const [entry, setEntry] = useState('');
+  const [quickLog, setQuickLog] = useState('');
 
   return (
-    <div>
-      <div className="panel">
-        <div className="panel-header">
-          <div>
-            <div className="label-small">Journal</div>
-            <h1>Daily Entry</h1>
-          </div>
-          <div className="status-chip">+30 XP • +20 Solars</div>
+    <div className="page-shell journal-page">
+      <div className="page-header">
+        <div>
+          <div className="label-small">Journal</div>
+          <h1>Daily Entry</h1>
         </div>
+        <div className="status-chip glow-pill">+30 XP • +20 Solars</div>
+      </div>
+
+      <div className="glass-panel">
         <div className="tab-bar">
           {prompts.map((prompt, index) => (
             <button
@@ -37,21 +40,36 @@ export default function JournalPage() {
             </button>
           ))}
         </div>
-        <div style={{ marginTop: 20 }}>
+
+        <div className="form-section">
           <div className="label-small">{prompts[activePrompt].label}</div>
+          <VoiceInput
+            onResult={(text) => setEntry((current) => (current ? `${current}\n${text}` : text))}
+            label="Journal voice capture"
+            helperText="Speak your entry, then edit it before submission."
+          />
           <textarea
             value={entry}
             onChange={(event) => setEntry(event.target.value)}
             placeholder={prompts[activePrompt].placeholder}
           />
-          <button style={{ marginTop: 10, width: 'fit-content' }}>Submit Entry</button>
+          <button type="button">Submit Entry</button>
         </div>
       </div>
 
-      <div className="panel">
-        <div className="label-small">Quick Log</div>
-        <textarea placeholder="Capture anything. AEON will respond in 2-3 sentences." />
-        <button style={{ marginTop: 10, width: 'fit-content' }}>Log Quick Note</button>
+      <div className="glass-panel">
+        <div className="section-title">Quick Log</div>
+        <VoiceInput
+          onResult={(text) => setQuickLog((current) => (current ? `${current}\n${text}` : text))}
+          label="Quick note voice capture"
+          helperText="Speak a short thought or insight."
+        />
+        <textarea
+          value={quickLog}
+          onChange={(event) => setQuickLog(event.target.value)}
+          placeholder="Capture anything. AEON will respond in 2-3 sentences."
+        />
+        <button type="button">Log Quick Note</button>
       </div>
     </div>
   );
